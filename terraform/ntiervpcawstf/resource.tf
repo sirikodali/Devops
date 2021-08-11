@@ -1,0 +1,138 @@
+
+resource "aws_vpc" "ntier"{
+
+    cidr_block = var.vpccidr
+
+    tags =    {
+        Name = "ntiervpc"
+    }
+}
+
+
+resource "aws_subnet" "subnet"{
+count = length(local.subnetnames)
+
+    vpc_id = aws_vpc.ntier.id
+    cidr_block = cidrsubnet(var.vpccidr,8,count.index)
+    availability_zone = "${var.region}${count.index%2 == 0? "a": "b"}"
+    tags =    {
+        Name = local.subnetnames[count.index]
+    }
+    depends_on = [
+        aws_vpc.ntier
+    ]
+    }
+
+
+
+resource "aws_internet_gateway" "ntierigw" {
+  vpc_id = aws_vpc.ntier.id
+
+  tags = {
+    Name = local.igw_name
+  }
+    depends_on = [
+        aws_vpc.ntier
+    ]
+}
+
+
+resource "aws_route_table" "publicrt" {
+  vpc_id = aws_vpc.ntier.id
+   tags = {
+
+    Name = "publicrttf"
+  }
+
+  route  {
+      cidr_block = local.anywhere
+      gateway_id = aws_internet_gateway.ntierigw.id
+       }
+       
+   
+    depends_on = [
+        aws_vpc.ntier,
+        aws_subnet.subnet[0],
+        aws_subnet.subnet[1],
+        aws_internet_gateway.ntierigw
+    ]
+}
+
+# resource "aws_route_table_association" "webassociation" {
+#   count = 2
+#   subnet_id      = aws_subnet.subnet[count.index].id
+
+#   route_table_id = aws_route_table.publicrt.id
+
+#     depends_on = [
+#        aws_subnet.subnet[0],
+#         aws_subnet.subnet[1],
+#         aws_route_table.publicrt
+#     ]
+# }
+
+resource "aws_route_table_association" "publicassociations"{
+
+for_each = data.aws_subnet_ids.publicsubnets.ids
+route_table_id = aws_route_table.publicrt.id
+subnet_id = each.key
+depends_on = [
+       aws_subnet.subnet[0],
+       aws_subnet.subnet[1],
+       aws_route_table.publicrt
+    ]
+
+}
+
+
+resource "aws_route_table" "privatert" {
+  vpc_id = aws_vpc.ntier.id
+   tags = {
+
+    Name = "privaterttf"
+  }     
+   
+    depends_on = [
+        aws_vpc.ntier,
+        aws_subnet.subnet[2],
+        aws_subnet.subnet[3],
+        aws_subnet.subnet[4],
+        aws_subnet.subnet[5],
+       
+    ]
+}
+
+
+
+
+
+
+# resource "aws_route_table_association" "appassociation" {
+#   count = 4
+#   subnet_id      = aws_subnet.subnet[count.index+2].id
+
+#   route_table_id = aws_route_table.privatert.id
+
+#     depends_on = [
+#        aws_subnet.subnet[2],
+#         aws_subnet.subnet[3],
+#         aws_subnet.subnet[4],
+#         aws_subnet.subnet[5],
+#         aws_route_table.privatert
+#     ]
+# }
+
+resource "aws_route_table_association" "privateassociations"{
+
+for_each = data.aws_subnet_ids.privatesubnets.ids
+route_table_id = aws_route_table.privatert.id
+subnet_id = each.key
+depends_on = [
+       aws_subnet.subnet[2],
+       aws_subnet.subnet[3],
+       aws_subnet.subnet[4],
+       aws_subnet.subnet[5],
+       aws_route_table.privatert
+    ]
+
+}
